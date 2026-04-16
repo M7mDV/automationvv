@@ -1,0 +1,81 @@
+name: Subdomain Monitor
+
+on:
+  schedule:
+    # ── Change schedule to your liking ──────────────────
+    # every hour:    '0 * * * *'
+    # every 6h:      '0 */6 * * *'   ← default
+    # every 12h:     '0 */12 * * *'
+    # every day 8am: '0 8 * * *'
+    # ────────────────────────────────────────────────────
+    - cron: '0 */6 * * *'
+
+  workflow_dispatch:   # manual trigger from Actions tab
+
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write   # needed to commit updated results
+
+    steps:
+      # ── 1. Checkout ─────────────────────────────────────
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      # ── 2. Python ───────────────────────────────────────
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Python dependencies
+        run: pip install requests
+
+      # ── 3. Go (needed for subfinder, assetfinder, chaos) ─
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+
+      # ── 4. Install recon tools ───────────────────────────
+
+      - name: Install subfinder
+        run: go install -v github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest
+
+      - name: Install assetfinder
+        run: go install github.com/tomnomnom/assetfinder@latest
+
+      - name: Install findomain
+        run: |
+          curl -sLO https://github.com/findomain/findomain/releases/latest/download/findomain-linux-i386.zip
+          unzip -q findomain-linux-i386.zip
+          chmod +x findomain
+          sudo mv findomain /usr/local/bin/
+
+      - name: Install chaos
+        run: go install -v github.com/projectdiscovery/chaos-client/cmd/chaos@latest
+
+      - name: Clone dnscan (optional bruteforce)
+        run: |
+          git clone --depth 1 https://github.com/rbsec/dnscan.git dnscan || true
+          pip install -r dnscan/requirements.txt 2>/dev/null || true
+
+      # ── 5. Run monitor ───────────────────────────────────
+      - name: Run subdomain monitor
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+          CHAOS_API_KEY:   ${{ secrets.CHAOS_API_KEY }}
+          # WORDLIST_PATH: dnscan/subdomains-10000.txt   # uncomment to enable bruteforce
+        run: python monitor.py
+
+      # ── 6. Commit updated results ────────────────────────
+      - name: Commit updated results
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add results/
+          git diff --cached --quiet || git commit -m "chore: update subdomain results [$(date -u '+%Y-%m-%d %H:%M UTC')]"
+          git push

@@ -1,0 +1,9 @@
+# Add the domains you want to monitor here (one per line)
+# Lines starting with # are ignored
+#
+# Examples:
+# example.com
+# tesla.com
+# google.com
+
+example.com
