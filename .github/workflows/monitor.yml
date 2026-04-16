@@ -48,6 +48,9 @@ jobs:
       - name: Install assetfinder
         run: go install github.com/tomnomnom/assetfinder@latest
 
+      - name: Install httpx
+        run: go install -v github.com/projectdiscovery/httpx/cmd/httpx@latest
+
       - name: Install findomain
         run: |
           curl -sLO https://github.com/findomain/findomain/releases/latest/download/findomain-linux-i386.zip
